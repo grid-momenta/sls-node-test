@@ -4,8 +4,203 @@ frameworkVersion: '3'
 
 provider:
   name: aws
+  deploymentMethod: direct
+  stage: dev
   runtime: nodejs14.x
+
+#plugins:
+#  - serverless-appsync-plugin
+#
+#custom:
+#  appSync:
+#    - name: ${self:service}-${opt:stage, self:provider.stage}
+#      authenticationType: API_KEY
+#      apiKeys:
+#        - name: dhn
+#          description: 'My api key'
+#          expiresAfter: 30d
 
 functions:
   hello:
-    handler: handler.hello
+    handler: src/handler.hello
+
+resources:
+  Resources:
+    NotificationTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: core-notify-${opt:stage, self:provider.stage}-notification
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: level
+            AttributeType: S
+#          - AttributeName: status
+#            AttributeType: S
+          - AttributeName: type
+            AttributeType: S
+          - AttributeName: read
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S
+#          - AttributeName: createdAt
+#            AttributeType: S
+#          - AttributeName: updatedAt
+#            AttributeType: S
+#          - AttributeName: archived
+#            AttributeType: S
+#          - AttributeName: expiration
+#            AttributeType: N
+        BillingMode: PAY_PER_REQUEST
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: id
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: byDateAndId
+            KeySchema:
+              - AttributeName: date
+                KeyType: HASH
+              - AttributeName: id
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        LocalSecondaryIndexes:
+          - IndexName: byUserIdAndRead
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: read
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byUserIdAndDate
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: date
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byUserIdAndLevel
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: level
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byUserIdAndType
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: type
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        TimeToLiveSpecification:
+          AttributeName: expiration
+          Enabled: true
+
+    NotificationServiceEventBus: ## EventBridge Event Bus for processing notifications
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: core-resource-notification-event-bus
+
+    NotificationServiceConnection:
+      Type: AWS::Events::Connection
+      Properties:
+        AuthorizationType: API_KEY
+        AuthParameters:
+          ApiKeyAuthParameters:
+            ApiKeyName: x-api-key
+            ApiKeyValue: !GetAtt GraphQLApiKey.ApiKey
+
+    GraphQLApi:  ## AppSync API
+      Type: AWS::AppSync::GraphQLApi
+      Properties:
+        AuthenticationType: API_KEY
+        Name: core-resource-notification-eventbridge-destination
+
+    GraphQLApiKey:  ## API Key for AppSync
+      Type: AWS::AppSync::ApiKey
+      Properties:
+        ApiId: !GetAtt GraphQLApi.ApiId
+
+    GraphQLSchema:  ## Schema for sample backend for frontend
+      Type: AWS::AppSync::GraphQLSchema
+      Properties:
+        ApiId: !GetAtt GraphQLApi.ApiId
+        Definition: |
+          type StatusUpdate {
+            orderId: ID!
+            status: Status!
+            prevStatus: Status
+            updatedAt: AWSDateTime!
+          }
+          enum Status {
+            PENDING
+            IN_PROGRESS
+            SHIPPED
+            DELIVERED
+            COMPLETE
+          }
+          type Query {
+            getStatus(orderId: ID!): Boolean
+          }
+          type Mutation {
+            publishStatusUpdate(orderId: ID!, status: Status!, prevStatus: Status, updatedAt: AWSDateTime!): StatusUpdate
+          }
+          type Subscription {
+            onStatusUpdate(orderId: ID!): StatusUpdate
+              @aws_subscribe(mutations: [ "publishStatusUpdate" ])
+          }
+          schema {
+            query: Query
+            mutation: Mutation
+            subscription: Subscription
+          }
+
+    NoneDataSource:  ## Local data source for AppSync
+      Type: AWS::AppSync::DataSource
+      Properties:
+        ApiId: !GetAtt GraphQLApi.ApiId
+        Name: NoneDataSource
+        Type: NONE
+
+    PublishStatusUpdateMutationResolver:  ## Resolver for putStatusUpdate mutation
+      Type: AWS::AppSync::Resolver
+      Properties:
+        ApiId: !GetAtt GraphQLApi.ApiId
+        TypeName: Mutation
+        FieldName: publishStatusUpdate
+        DataSourceName: !GetAtt NoneDataSource.Name
+        RequestMappingTemplate: |
+          {
+            "version": "2018-05-29",
+            "payload": $util.toJson($ctx.args)
+          }
+        ResponseMappingTemplate: |
+          $util.toJson($ctx.result)
+
+  Outputs:
+    NotificationTableName:
+      Value: { Ref: NotificationTable }
+    NotificationTableArn:
+      Value: { Fn::GetAtt: [ NotificationTable, Arn ] }
+    NotificationTableStreamArn:
+      Value: { Fn::GetAtt: [ NotificationTable, StreamArn ] }
+    NotificationServiceEventBusArn:
+      Value: { Fn::GetAtt: [ NotificationServiceEventBus, Arn ] }
+    AppSyncEndpoint:
+      Value: !GetAtt GraphQLApi.GraphQLUrl
+      Description: Endpoint for GraphQL API
+    ApiKey:
+      Value: !GetAtt GraphQLApiKey.ApiKey
