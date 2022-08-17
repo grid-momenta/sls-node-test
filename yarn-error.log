@@ -1,0 +1,42 @@
+Arguments: 
+  /home/dhn/.nvm/versions/node/v16.14.2/bin/node /usr/share/yarn/bin/yarn.js add serverless-appsync-plugin
+
+PATH: 
+  /home/dhn/.nvm/versions/node/v16.14.2/bin:/home/dhn/anaconda3/condabin:/home/dhn/.cargo/bin:/home/dhn/.local/bin:/home/dhn/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/dhn/.composer/vendor/bin
+
+Yarn version: 
+  1.22.19
+
+Node version: 
+  16.14.2
+
+Platform: 
+  linux x64
+
+Trace: 
+  Error: https://sadl-artifact-store-264176355928.d.codeartifact.us-east-1.amazonaws.com/npm/npm-store-connection/serverless-appsync-plugin: Unauthenticated: request did not include an Authorization header. Please provide your credentials.
+      at Request.params.callback [as _callback] (/usr/share/yarn/lib/cli.js:66145:18)
+      at Request.self.callback (/usr/share/yarn/lib/cli.js:140890:22)
+      at Request.emit (node:events:526:28)
+      at Request.<anonymous> (/usr/share/yarn/lib/cli.js:141862:10)
+      at Request.emit (node:events:526:28)
+      at Gunzip.<anonymous> (/usr/share/yarn/lib/cli.js:141784:12)
+      at Object.onceWrapper (node:events:645:28)
+      at Gunzip.emit (node:events:526:28)
+      at endReadableNT (node:internal/streams/readable:1345:12)
+      at processTicksAndRejections (node:internal/process/task_queues:83:21)
+
+npm manifest: 
+  {
+    "name": "sls-node-test",
+    "version": "1.0.0",
+    "main": "index.js",
+    "author": "DHN Chandan <php.chandan@gmail.com>",
+    "license": "MIT"
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile

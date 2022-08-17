@@ -1,0 +1,10 @@
+{
+  "name": "sls-node-test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "DHN Chandan <php.chandan@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "serverless-appsync-plugin": "^1.14.0"
+  }
+}
